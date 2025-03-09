@@ -1,0 +1,256 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use UI::Dialog;
+use Term::ReadKey;
+use Term::ANSIScreen qw(cls);
+use Proc::ProcessTable;
+use POSIX qw(strftime);
+use Number::Bytes::Human qw(format_bytes parse_bytes);
+
+# Commands
+my $FileEditor = "/bin/nano";
+my $InitDName = "/home/mednafenuser/bin/mednafen";
+my $MMCONF = "/home/mednafenuser/mednafen-server";
+my $BackupCommand = "/home/mednafenuser/MednafenBackup/mednafenbackup.pl -snapshot";
+my $PagerCommand = "/usr/bin/less";
+my $UpdateCommand = "/usr/bin/git pull";
+my $MMCDir = "/home/mednafenuser/MednafenManagement";
+my $BackupToolDir = "/home/mednafenuser/MednafenBackup";
+my $ConsoleCommand = "screen -r";
+
+my $DEBUG_MODE = "off";
+
+# Data Files
+my $CONFFILE = "$MMCONF/standard.conf";
+
+###################################################
+# No changes below here
+###################################################
+
+my $MySettings = "$ENV{'HOME'}/.mmcrc";
+
+my $MMC_ver = "1.0";
+my $Record = "false";	# Are results saved?
+my $TempDir = "/tmp";
+my $RobotName = "";
+my $BotVersion = "";
+my $UserName = "";
+my $ServerStatus = "foo";
+
+sub PrintDebugCommand
+{
+        if ($DEBUG_MODE eq "off")
+        {
+                return;
+        }
+        my $PassedString = shift;
+        print "About to run:\n$PassedString\n";
+        print "Press Enter To Run This:";
+        my $entered = <STDIN>;
+}
+
+my $d = new UI::Dialog ( backtitle => "Mednafen Management Console v$MMC_ver", height => 20, width => 65, listheight => 5,
+	order => [ 'ascii', 'cdialog', 'xdialog' ]);
+
+my $windowtitle = "Welcome to the Mednafen Management Console!";
+my $enjoyedtitle = "We hope you enjoyed MMC!";
+my $introtext =
+"This is the Mednafen Management Console, a utility for Mednafen operators
+to manage their servers from a text UI rather than the command line.";
+
+$d->msgbox( title => $windowtitle, text => $introtext );
+
+if (($d->state() eq "ESC") || ($d->state() eq "CANCEL"))
+{
+	exit 0;
+}
+
+# Check for config file
+if (-f $MySettings)
+{
+	# Read in settings
+	open (my $FH, "<", $MySettings) or die "Could not read default file '$MySettings' $!";
+	while (<$FH>)
+	{
+		chop();
+		my ($Command, $Setting) = split(/=/, $_);
+		if ($Command eq "fileeditor")
+		{
+			$FileEditor = $Setting;
+		}
+		elsif ($Command eq "initdname")
+		{
+			$InitDName = $Setting;
+		}
+		elsif ($Command eq "backupcommand")
+		{
+			$BackupCommand = $Setting;
+		}
+		elsif ($Command eq "pagercommand")
+		{
+			$PagerCommand = $Setting;
+		}
+		elsif ($Command eq "configfiletxt")
+		{
+			$CONFFILE = $Setting;
+		}
+	}
+	close($FH);
+}
+else
+{
+	# Store defaults
+	open (my $FH, ">", $MySettings) or die "Could not create default file '$MySettings' $!";
+	print $FH "fileeditor=/bin/nano\n";
+	print $FH "initdname=/home/mednafenuser/bin/mednafen\n";
+	print $FH "backupcommand=/home/mednafenuser/ejabberd-backup/ejabberdbackup.pl -snapshot\n";
+	print $FH "pagercommand=/usr/bin/less\n";
+	print $FH "configfiletxt=$MMCONF/standard.conf\n";
+	close($FH);
+}
+
+my $menuselection = "";
+
+sub CheckServerStatus
+{
+	my $running=`ps ax|grep mednafen-server|grep -v grep`;
+
+	if ($running ne "")
+	{
+		$ServerStatus = "Running";
+	}
+	else
+	{
+		$ServerStatus = "Stopped";
+	}
+
+}
+
+sub UpdateToolsMenu
+{
+        my $WantRespawn="ON";
+        CheckServerStatus();
+        if (-f "$MMCONF/nostart")
+        {
+                $WantRespawn="OFF";
+        }
+        $menuselection = $d->menu( title => "Update Tools Menu", text => "Server is $ServerStatus and respawn is $WantRespawn - Select one:",
+                            list => [ '1', 'Update MMC',
+                                      '2', 'Update Backup',
+                                      'q', 'Main Menu' ] );
+}
+
+sub DoUpdate
+{
+        my $DesiredDir = $_[0];
+
+        # Update desired utility
+        chdir ($DesiredDir);
+        PrintDebugCommand("Running $UpdateCommand in $DesiredDir\n");
+        system("$UpdateCommand");
+        print "Press Enter To Continue";
+        my $entered = <STDIN>;
+}
+
+sub UpdateTools
+{
+        while (-1)
+        {
+                UpdateToolsMenu();
+                if (($menuselection eq "CANCEL") || ($menuselection eq "ESC") || ($menuselection eq "") || ($menuselection eq "q") || ($menuselection eq "Q"))
+                {
+                        return;
+                }
+                elsif ($menuselection eq "1")
+                {
+                        # Update HMC
+                        DoUpdate($MMCDir);
+                }
+                elsif ($menuselection eq "2")
+                {
+                        # Update BackupToolDir
+                        DoUpdate($BackupToolDir);
+                }
+        }
+}
+
+sub MainMenu
+{
+	my $WantRespawn="ON";
+	CheckServerStatus();
+	if (-f "$MMCONF/nostart")
+	{
+		$WantRespawn="OFF";
+	}
+
+	$menuselection = $d->menu( title => "Main Menu", text => "Server is $ServerStatus and respawn is $WantRespawn - Select one:",
+                            list => [ '1', 'Start Server',
+                                      '2', 'Stop Server',
+                                      '3', 'Server Console',
+                                      '4', 'Edit standard.conf',
+                                      '5', 'Run Backup',
+                                      '6', 'Edit Settings',
+                                      '7', 'Restart Mednafen',
+                                      '8', 'Update Tools',
+                                      'q', 'Quit MMC' ] );
+}
+
+while (-1)
+{
+	MainMenu();
+	if (($menuselection eq "CANCEL") || ($menuselection eq "ESC") || ($menuselection eq "") || ($menuselection eq "q") || ($menuselection eq "Q"))
+	{
+		$d->msgbox( title => $enjoyedtitle, text => "Thanks for using MMC..." );
+		exit 0;
+	}
+	if ($menuselection eq "1")
+	{
+		system("$InitDName start");
+	}
+	elsif ($menuselection eq "2")
+	{
+		if ($d->yesno( text => "Confirm stopping the server", text => "Are you sure you want to stop the server?" ))
+		{
+			system("$InitDName stop");
+			sleep(5);
+		}
+	}
+	elsif ($menuselection eq "3")
+	{
+		system("$ConsoleCommand");
+	}
+	elsif ($menuselection eq "4")
+	{
+		# Edit ejabberdctl.cfg
+		system("$FileEditor $CONFFILE");
+	}
+	elsif ($menuselection eq "5")
+	{
+		# Run a backup
+		system("clear");
+		system("$BackupCommand");
+		print "Press Enter To Continue";
+		my $entered = <STDIN>;
+	}
+	elsif ($menuselection eq "6")
+	{
+		# Run the download settings email
+		system("$FileEditor $MySettings");
+	}
+	elsif ($menuselection eq "7")
+	{
+		# Reset server process
+		print "Restartintg the Server Process\n";
+                system("$InitDName restart");
+		sleep(5);
+	}
+	elsif ($menuselection eq "8")
+	{
+		# Update tools menu
+		UpdateTools();
+	}
+}
+
+exit 0;
