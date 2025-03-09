@@ -13,11 +13,11 @@ use Number::Bytes::Human qw(format_bytes parse_bytes);
 my $FileEditor = "/bin/nano";
 my $InitDName = "/home/mednafenuser/bin/mednafen";
 my $MMCONF = "/home/mednafenuser/mednafen-server";
-my $BackupCommand = "/home/mednafenuser/MednafenBackup/mednafenbackup.pl -snapshot";
+my $BackupToolDir = "/home/mednafenuser/MednafenBackup";
+my $BackupCommand = "$BackupToolDir/mednafenbackup.pl -snapshot";
 my $PagerCommand = "/usr/bin/less";
 my $UpdateCommand = "/usr/bin/git pull";
 my $MMCDir = "/home/mednafenuser/MednafenManagement";
-my $BackupToolDir = "/home/mednafenuser/MednafenBackup";
 my $ConsoleCommand = "screen -r";
 
 my $DEBUG_MODE = "off";
@@ -103,11 +103,11 @@ else
 {
 	# Store defaults
 	open (my $FH, ">", $MySettings) or die "Could not create default file '$MySettings' $!";
-	print $FH "fileeditor=/bin/nano\n";
-	print $FH "initdname=/home/mednafenuser/bin/mednafen\n";
-	print $FH "backupcommand=/home/mednafenuser/ejabberd-backup/ejabberdbackup.pl -snapshot\n";
-	print $FH "pagercommand=/usr/bin/less\n";
-	print $FH "configfiletxt=$MMCONF/standard.conf\n";
+	print $FH "fileeditor=$FileEditor\n";
+	print $FH "initdname=$InitDName\n";
+	print $FH "backupcommand=$BackupCommand\n";
+	print $FH "pagercommand=$PagerCommand\n";
+	print $FH "configfiletxt=$CONFFILE\n";
 	close($FH);
 }
 
